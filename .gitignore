@@ -1,0 +1,19 @@
+# Environment variables — NEVER commit these
+.env
+.env.local
+
+# SQLite files — the DB itself shouldn't be in the repo
+dental.db
+dental.db-shm
+dental.db-wal
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python venv
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
