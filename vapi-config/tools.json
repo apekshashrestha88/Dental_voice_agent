@@ -1,0 +1,125 @@
+{
+  "notes": "These are the 4 tools configured in the VAPI assistant. Create each one in VAPI Dashboard > Tools, then attach all to the assistant under the Tools tab. Replace YOUR_NGROK_URL with your actual ngrok URL e.g. https://eve-brainlike-yoshie.ngrok-free.dev",
+
+  "tools": [
+    {
+      "name": "checkAvailability",
+      "type": "apiRequest",
+      "toolId": "74efbd31-1974-4adc-88a8-6c57c90d81f4",
+      "description": "Check available appointment slots for a given date. Always call this before booking.",
+      "method": "POST",
+      "url": "YOUR_NGROK_URL/api/check-availability",
+      "requestBody": {
+        "date": {
+          "type": "string",
+          "required": true,
+          "description": "The appointment date in YYYY-MM-DD format."
+        },
+        "dentist": {
+          "type": "string",
+          "required": false,
+          "description": "Optional preferred dentist name."
+        }
+      }
+    },
+
+    {
+      "name": "bookAppointment",
+      "type": "apiRequest",
+      "toolId": "1117e15d-a6c3-457f-8925-b12bf1f5c1ff",
+      "description": "Book a new dental appointment after confirming availability.",
+      "method": "POST",
+      "url": "YOUR_NGROK_URL/api/book-appointment",
+      "requestBody": {
+        "patientName": {
+          "type": "string",
+          "required": true,
+          "description": "Full name of the patient."
+        },
+        "phone": {
+          "type": "string",
+          "required": true,
+          "description": "Patient phone number."
+        },
+        "date": {
+          "type": "string",
+          "required": true,
+          "description": "Appointment date in YYYY-MM-DD format."
+        },
+        "time": {
+          "type": "string",
+          "required": true,
+          "description": "Appointment time e.g. 10:00 AM."
+        },
+        "reason": {
+          "type": "string",
+          "required": true,
+          "description": "Reason for visit e.g. routine checkup, toothache, cleaning."
+        },
+        "dentist": {
+          "type": "string",
+          "required": false,
+          "description": "Preferred dentist name. Leave empty to auto-assign first available."
+        }
+      }
+    },
+
+    {
+      "name": "updateAppointment",
+      "type": "apiRequest",
+      "toolId": "87069b29-6c68-44de-b54f-f550d5eea22b",
+      "description": "Reschedule or cancel an existing appointment.",
+      "method": "POST",
+      "url": "YOUR_NGROK_URL/api/update-appointment",
+      "requestBody": {
+        "bookingRef": {
+          "type": "string",
+          "required": true,
+          "description": "4-digit booking reference number."
+        },
+        "action": {
+          "type": "string",
+          "required": true,
+          "enum": ["reschedule", "cancel", "changeDentist"],
+          "description": "Action to perform: reschedule, cancel, or changeDentist."
+        },
+        "newDate": {
+          "type": "string",
+          "required": false,
+          "description": "New appointment date in YYYY-MM-DD format. Required when action is reschedule."
+        },
+        "newTime": {
+          "type": "string",
+          "required": false,
+          "description": "New appointment time e.g. 11:00 AM. Required when action is reschedule."
+        },
+        "newDentist": {
+          "type": "string",
+          "required": false,
+          "description": "Name of the dentist to switch to. Required when action is changeDentist."
+        }
+      }
+    },
+
+    {
+      "name": "transfer_call_tool",
+      "type": "transferCall",
+      "toolId": "d1773c3b-0850-4152-9b08-46c201e21ecd",
+      "description": "Use this tool to transfer the call to a staff member when the patient asks to speak with a real person, describes a dental emergency, becomes distressed or the assistant is unable to resolve their request after a couple of attempts.",
+      "destinations": [
+        {
+          "type": "number",
+          "number": "+9779807352405",
+          "callerId": "+12568713120",
+          "messageToCustomer": "Connecting now.",
+          "description": "staff line",
+          "transferPlan": {
+            "mode": "blind-transfer",
+            "sipVerb": "refer"
+          },
+          "enforceE164Format": true
+        }
+      ]
+    }
+  ]
+}
