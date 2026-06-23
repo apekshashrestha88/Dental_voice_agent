@@ -79,11 +79,11 @@ const DATES = {
 async function test(name, fn) {
   try {
     await fn();
-    console.log(`  ✅ ${name}`);
+    console.log(` ${name}`);
     passed++;
   } catch (err) {
-    console.log(`  ❌ ${name}`);
-    console.log(`     → ${err.message}`);
+    console.log(` ${name}`);
+    console.log(`   → ${err.message}`);
     failed++;
   }
 }
@@ -129,7 +129,7 @@ async function createAppointment(overrides = {}) {
 async function cleanupTestAppointments() {
   const { status, data } = await get("/api/appointments", AUTH);
   if (status !== 200) {
-    console.warn("   ⚠️  Cleanup skipped — could not fetch appointments (auth issue?)");
+    console.warn(" Cleanup skipped — could not fetch appointments (auth issue?)");
     return;
   }
 
@@ -153,14 +153,14 @@ async function cleanupTestAppointments() {
   }
 
   if (cleaned > 0) {
-    console.log(`   🧹 Cleaned up ${cleaned} leftover test appointment(s)\n`);
+    console.log(` Cleaned up ${cleaned} leftover test appointment(s)\n`);
   }
 }
 
 // ─── Test suites ──────────────────────────────────────────────────────────────
 
 async function runHealthCheck() {
-  console.log("\n📋 Health Check");
+  console.log("\nHealth Check");
 
   await test("GET / returns server status", async () => {
     const { status, data } = await get("/");
@@ -170,7 +170,7 @@ async function runHealthCheck() {
 }
 
 async function runCheckAvailabilityTests() {
-  console.log("\n📅 Check Availability");
+  console.log("\nCheck Availability");
 
   await test("Valid weekday returns available slots", async () => {
     const { status, data } = await post("/api/check-availability", {
@@ -224,7 +224,7 @@ async function runCheckAvailabilityTests() {
 }
 
 async function runBookAppointmentTests() {
-  console.log("\n📝 Book Appointment");
+  console.log("\nBook Appointment");
 
   await test("Valid booking creates appointment and returns 4-digit ref", async () => {
     const { status, data } = await post("/api/book-appointment", {
@@ -311,7 +311,7 @@ async function runBookAppointmentTests() {
 }
 
 async function runUpdateAppointmentTests() {
-  console.log("\n🔄 Update Appointment");
+  console.log("\nUpdate Appointment");
 
   await test("Reschedule moves appointment to new date and time", async () => {
     const ref = await createAppointment({
@@ -462,7 +462,7 @@ async function runUpdateAppointmentTests() {
 }
 
 async function runGetAppointmentsTests() {
-  console.log("\n📊 Get Appointments");
+  console.log("\n Get Appointments");
 
   await test("GET /api/appointments returns appointments array with count", async () => {
     const { status, data } = await get("/api/appointments", AUTH);
@@ -499,7 +499,7 @@ async function runGetAppointmentsTests() {
 }
 
 async function runDentistTests() {
-  console.log("\n👨‍⚕️ Dentists");
+  console.log("\n Dentists");
 
   await test("GET /api/dentists returns exactly 5 dentists", async () => {
     const { status, data } = await get("/api/dentists", AUTH);
@@ -545,14 +545,14 @@ async function runDentistTests() {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("═══════════════════════════════════════════════");
-  console.log("🦷 Bright Smile Dental — API Test Suite");
+  console.log("Bright Smile Dental — API Test Suite");
   console.log("═══════════════════════════════════════════════");
   console.log(`   Backend: ${BASE_URL}`);
   console.log(`   Note: Each test owns its own year (2030–2035)`);
   console.log(`         so slot conflicts are impossible.`);
   console.log(`   Run:  ADMIN_API_KEY=yourkey node tests/api-test.js\n`);
   if (!process.env.ADMIN_API_KEY) {
-    console.warn("   ⚠️  ADMIN_API_KEY not set — admin route tests will return 401\n");
+    console.warn("ADMIN_API_KEY not set — admin route tests will return 401\n");
   }
 
   try {
@@ -571,9 +571,9 @@ async function main() {
   console.log(`   Results: ${passed} passed, ${failed} failed`);
   console.log(`   Total:   ${passed + failed} tests`);
   if (failed === 0) {
-    console.log("   Status:  ✅ All tests passed!");
+    console.log("   Status:  All tests passed!");
   } else {
-    console.log("   Status:  ❌ Some tests failed");
+    console.log("   Status:  Some tests failed");
   }
   console.log("═══════════════════════════════════════════════\n");
 

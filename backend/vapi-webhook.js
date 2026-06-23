@@ -78,7 +78,7 @@ router.post('/', (req, res) => {
   const { type, call } = message;
   const callId = call?.id || 'unknown';
 
-  console.log(`\n📞 Vapi webhook — type: ${type} | callId: ${callId}`);
+  console.log(`\n Vapi webhook — type: ${type} | callId: ${callId}`);
 
   // ── 1. assistant-request ──────────────────────────────────────────────────
   // Vapi fires this at the very start of a call when the assistant has
@@ -129,10 +129,10 @@ router.post('/', (req, res) => {
         transcript:      transcript      || null,
         recordingUrl:    recordingUrl    || null,
       });
-      console.log('   ✅ Call log saved to dental.db');
+      console.log('Call log saved to dental.db');
     } catch (err) {
       // Non-fatal — log but don't fail the webhook response
-      console.error('   ⚠️  Failed to save call log:', err.message);
+      console.error('Failed to save call log:', err.message);
     }
 
     return res.status(200).json({ received: true });
@@ -171,7 +171,7 @@ router.post('/', (req, res) => {
   // Nothing to do on the backend for this — the assistant handles it via its
   // silence timeout config (set to 35s in assistant.json).
   if (type === 'hang') {
-    console.log('   ⚠️  Assistant silence timeout triggered');
+    console.log('Assistant silence timeout triggered');
     return res.status(200).json({ received: true });
   }
 

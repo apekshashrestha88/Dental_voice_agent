@@ -45,7 +45,7 @@ app.use(express.json());
 
 // ─── Request Logger ───────────────────────────────────────────────────────────
 app.use((req, res, next) => {
-  console.log(`\n📥 ${req.method} ${req.path}`);
+  console.log(`\n ${req.method} ${req.path}`);
   if (req.body  && Object.keys(req.body).length)  console.log("   Body:",  JSON.stringify(req.body));
   if (req.query && Object.keys(req.query).length) console.log("   Query:", JSON.stringify(req.query));
   next();
@@ -466,7 +466,7 @@ app.post("/api/book-appointment", vapiLimiter, (req, res) => {
 
     const newAppointment = formatAppointment(stmts.findByRef.get({ ref: bookingRef }));
 
-    console.log(`✅ Booked: ${patientName} on ${normalizedDate} at ${time} with ${assignedDentist} | Ref: ${bookingRef}`);
+    console.log(`Booked: ${patientName} on ${normalizedDate} at ${time} with ${assignedDentist} | Ref: ${bookingRef}`);
 
     return res.status(201).json({
       success:         true,
@@ -512,7 +512,7 @@ app.post("/api/update-appointment", vapiLimiter, (req, res) => {
     if (action === "cancel") {
       stmts.cancel.run({ ref: bookingRef, now });
       const updated = formatAppointment(stmts.findByRef.get({ ref: bookingRef }));
-      console.log(`❌ Cancelled: ${appt.patient_name} | Ref: ${bookingRef}`);
+      console.log(`Cancelled: ${appt.patient_name} | Ref: ${bookingRef}`);
       return res.json({
         success:     true,
         message:     `Done! ${appt.patient_name}, your appointment on ${appt.date} at ${appt.time} with ${appt.dentist} has been cancelled.`,
@@ -548,7 +548,7 @@ app.post("/api/update-appointment", vapiLimiter, (req, res) => {
 
       stmts.reschedule.run({ ref: bookingRef, date: normalizedNewDate, time: newTime, now });
       const updated = formatAppointment(stmts.findByRef.get({ ref: bookingRef }));
-      console.log(`🔄 Rescheduled: ${appt.patient_name} → ${normalizedNewDate} ${newTime} | Ref: ${bookingRef}`);
+      console.log(`Rescheduled: ${appt.patient_name} → ${normalizedNewDate} ${newTime} | Ref: ${bookingRef}`);
       return res.json({
         success:     true,
         message:     `All set! ${appt.patient_name}, your appointment has been moved to ${normalizedNewDate} at ${newTime} with ${appt.dentist}. Booking reference: ${bookingRef}.`,
@@ -587,7 +587,7 @@ app.post("/api/update-appointment", vapiLimiter, (req, res) => {
 
       stmts.changeDentist.run({ ref: bookingRef, dentist: dentistRecord.name, now });
       const updated = formatAppointment(stmts.findByRef.get({ ref: bookingRef }));
-      console.log(`👨‍⚕️ Dentist changed: ${appt.patient_name} → ${dentistRecord.name} | Ref: ${bookingRef}`);
+      console.log(`Dentist changed: ${appt.patient_name} → ${dentistRecord.name} | Ref: ${bookingRef}`);
       return res.json({
         success:     true,
         message:     `Done! ${appt.patient_name}, your appointment on ${appt.date} at ${appt.time} has been updated to ${dentistRecord.name} (${dentistRecord.specialty}). Booking reference: ${bookingRef}.`,
@@ -682,7 +682,7 @@ app.post("/api/outbound-call", adminLimiter, requireApiKey, async (req, res) => 
       });
     }
 
-    console.log(`📞 Outbound call triggered to ${patientPhone} (${patientName || "Patient"})`);
+    console.log(`Outbound call triggered to ${patientPhone} (${patientName || "Patient"})`);
     res.json({ success: true, message: `Calling ${patientPhone}...`, callId: data.id, call: data });
 
   } catch (err) {
@@ -735,7 +735,7 @@ app.post("/api/send-reminders", adminLimiter, requireApiKey, async (req, res) =>
           callId: data.id || null,
         });
 
-        console.log(`📞 Reminder sent to ${appt.patientName} at ${phone}`);
+        console.log(`Reminder sent to ${appt.patientName} at ${phone}`);
         await new Promise(r => setTimeout(r, 1000)); // avoid Vapi rate limits
 
       } catch (err) {
@@ -766,7 +766,7 @@ app.post("/api/vapi-system", vapiLimiter, (req, res) => {
   if (message) {
     const { type, call } = message;
     const callId = call?.id || "unknown";
-    console.log(`\n📞 Vapi webhook — type: ${type} | callId: ${callId}`);
+    console.log(`\nVapi webhook — type: ${type} | callId: ${callId}`);
 
     // ── assistant-request ─────────────────────────────────────────────────────
     // Inject today's date variables into the assistant's system prompt at call start.
@@ -802,9 +802,9 @@ app.post("/api/vapi-system", vapiLimiter, (req, res) => {
           transcript:      transcript      || null,
           recordingUrl:    recordingUrl    || null,
         });
-        console.log("   ✅ Call log saved to dental.db");
+        console.log(" Call log saved to dental.db");
       } catch (err) {
-        console.error("   ⚠️  Failed to save call log:", err.message);
+        console.error(" Failed to save call log:", err.message);
       }
 
       return res.status(200).json({ received: true });
@@ -815,7 +815,7 @@ app.post("/api/vapi-system", vapiLimiter, (req, res) => {
 
     // ── hang ──────────────────────────────────────────────────────────────────
     if (type === "hang") {
-      console.log("   ⚠️  Assistant silence timeout triggered");
+      console.log("Assistant silence timeout triggered");
       return res.status(200).json({ received: true });
     }
 
@@ -843,7 +843,7 @@ app.post("/api/vapi-system", vapiLimiter, (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.json({
-    status:    "🦷 Bright Smile Dental Voice Agent — Backend Running",
+    status:    "Bright Smile Dental Voice Agent — Backend Running",
     storage:   "SQLite (dental.db)",
     endpoints: {
       checkAvailability: "POST /api/check-availability",
@@ -862,8 +862,8 @@ app.get("/", (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🦷 Bright Smile Dental Backend running on http://localhost:${PORT}`);
-  console.log(`💾 Storage: SQLite (dental.db)`);
-  console.log(`🌐 Ngrok:   https://eve-brainlike-yoshie.ngrok-free.dev`);
+  console.log(`\nBright Smile Dental Backend running on http://localhost:${PORT}`);
+  console.log(`Storage: SQLite (dental.db)`);
+  console.log(`Ngrok:   https://eve-brainlike-yoshie.ngrok-free.dev`);
   console.log(`\nDentists loaded: Dr. Priya Sharma, Dr. Sanjay Verma, Dr. Anita Rai, Dr. Rohan Mehta, Dr. Kavya Nair\n`);
 });

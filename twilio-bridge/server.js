@@ -30,6 +30,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Twilio backend running on http://localhost:${PORT}`);
+  console.log(`   Twilio backend running on http://localhost:${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/health`);
 });
