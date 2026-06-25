@@ -8,6 +8,12 @@
  *   - DB calls go through queries.js (Supabase) and are now async/await
  *   - app.listen() removed; this file exports the Express app instance
  *
+ * FIX (2026-06): Time format mismatch resolved. SLOTS uses 12-hour format
+ *   ("02:00 PM") but Vapi was sending 24-hour ("14:00"). Added to12Hour()
+ *   utility and applied it in all booking/rescheduling paths so the DB
+ *   always stores 12-hour times — matching the SLOTS array for correct
+ *   availability filtering.
+ *
  * Local dev: you can still run this directly with `node server.js` —
  * see the bottom of this file for the dev-only listen guard.
  */
@@ -169,6 +175,21 @@ function isClinicOpen(dateStr) {
   return day && day !== "sunday";
 }
 
+// ─── Utility: normalize time to 12-hour format to match SLOTS ────────────────
+// FIX: Vapi sends times in 24-hour format ("14:00") but SLOTS stores them in
+// 12-hour format ("02:00 PM"). This caused checkAvailability to never filter
+// out booked slots because the formats never matched. Always call this before
+// saving or comparing a time value.
+function to12Hour(time) {
+  if (!time) return time;
+  // Already in 12-hour format — pass through unchanged
+  if (/AM|PM/i.test(time)) return time.toUpperCase();
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 || 12;
+  return `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 // ─── Utility: normalize phone to E.164 ───────────────────────────────────────
 function toE164Nepal(phone) {
   const s = String(phone).trim();
@@ -288,7 +309,9 @@ app.post("/api/check-availability", vapiLimiter, async (req, res) => {
         ? await queries.getBookedSlotsByDentist(normalizedDate, dentist)
         : await queries.getBookedSlots(normalizedDate);
 
-    const bookedSet = new Set(bookedRows.map((r) => r.time));
+    // bookedRows come from the DB; normalize each stored time to 12-hour so
+    // the comparison against SLOTS (which is always 12-hour) is reliable.
+    const bookedSet = new Set(bookedRows.map((r) => to12Hour(r.time)));
     const availableSlots = allSlots.filter((s) => !bookedSet.has(s));
     const availableDentists = (await queries.getDentistsForDay(day)).map((d) => `${d.name} (${d.specialty})`);
 
@@ -316,9 +339,10 @@ app.post("/api/check-availability", vapiLimiter, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.post("/api/book-appointment", vapiLimiter, async (req, res) => {
   try {
-    const { patientName, phone, date, time, reason, dentist } = sanitizeBody(req.body);
+    const { patientName, phone, date, reason, dentist } = sanitizeBody(req.body);
+    const normalizedTime = to12Hour(sanitizeBody(req.body).time); // FIX: normalize to 12-hour
 
-    if (!patientName || !phone || !date || !time || !reason) {
+    if (!patientName || !phone || !date || !normalizedTime || !reason) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: patientName, phone, date, time, reason.",
@@ -335,13 +359,13 @@ app.post("/api/book-appointment", vapiLimiter, async (req, res) => {
 
     const taken =
       dentist && dentist !== "Any available dentist"
-        ? await queries.slotTakenForDentist(normalizedDate, time, dentist)
-        : await queries.slotTaken(normalizedDate, time);
+        ? await queries.slotTakenForDentist(normalizedDate, normalizedTime, dentist)
+        : await queries.slotTaken(normalizedDate, normalizedTime);
 
     if (taken) {
       return res.status(409).json({
         success: false,
-        message: `The ${time} slot on ${normalizedDate} is already booked. Please choose a different time.`,
+        message: `The ${normalizedTime} slot on ${normalizedDate} is already booked. Please choose a different time.`,
       });
     }
 
@@ -357,18 +381,18 @@ app.post("/api/book-appointment", vapiLimiter, async (req, res) => {
 
     await queries.insertAppointment({
       id, bookingRef, patientName, phone: String(phone),
-      date: normalizedDate, time, reason, dentist: assignedDentist, createdAt,
+      date: normalizedDate, time: normalizedTime, reason, dentist: assignedDentist, createdAt,
     });
 
     const newAppointment = formatAppointment(await queries.findByRef(bookingRef));
 
-    console.log(`Booked: ${patientName} on ${normalizedDate} at ${time} with ${assignedDentist} | Ref: ${bookingRef}`);
+    console.log(`Booked: ${patientName} on ${normalizedDate} at ${normalizedTime} with ${assignedDentist} | Ref: ${bookingRef}`);
 
     return res.status(201).json({
       success: true,
       bookingRef,
       assignedDentist,
-      message: `Appointment confirmed! ${patientName}, your appointment is booked for ${normalizedDate} at ${time} with ${assignedDentist} for ${reason}. Your booking reference is ${bookingRef}.`,
+      message: `Appointment confirmed! ${patientName}, your appointment is booked for ${normalizedDate} at ${normalizedTime} with ${assignedDentist} for ${reason}. Your booking reference is ${bookingRef}.`,
       appointment: newAppointment,
     });
   } catch (err) {
@@ -382,7 +406,8 @@ app.post("/api/book-appointment", vapiLimiter, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 app.post("/api/update-appointment", vapiLimiter, async (req, res) => {
   try {
-    const { bookingRef, action, newDate, newTime, newDentist } = sanitizeBody(req.body);
+    const { bookingRef, action, newDate, newDentist } = sanitizeBody(req.body);
+    const normalizedNewTime = to12Hour(sanitizeBody(req.body).newTime); // FIX: normalize to 12-hour
 
     if (!bookingRef || !action) {
       return res.status(400).json({ success: false, message: "Booking reference and action are required." });
@@ -410,7 +435,7 @@ app.post("/api/update-appointment", vapiLimiter, async (req, res) => {
 
     // ── reschedule ────────────────────────────────────────────────────────────
     if (action === "reschedule") {
-      if (!newDate || !newTime) {
+      if (!newDate || !normalizedNewTime) {
         return res.status(400).json({ success: false, message: "New date and new time are required for rescheduling." });
       }
 
@@ -420,17 +445,17 @@ app.post("/api/update-appointment", vapiLimiter, async (req, res) => {
         return res.status(400).json({ success: false, message: "The clinic is closed on Sundays. Please choose another date." });
       }
 
-      const taken = await queries.slotTakenExcluding(normalizedNewDate, newTime, appt.id);
+      const taken = await queries.slotTakenExcluding(normalizedNewDate, normalizedNewTime, appt.id);
       if (taken) {
-        return res.status(409).json({ success: false, message: `The ${newTime} slot on ${normalizedNewDate} is already booked. Please choose a different time.` });
+        return res.status(409).json({ success: false, message: `The ${normalizedNewTime} slot on ${normalizedNewDate} is already booked. Please choose a different time.` });
       }
 
-      await queries.rescheduleAppointment(bookingRef, normalizedNewDate, newTime, now);
+      await queries.rescheduleAppointment(bookingRef, normalizedNewDate, normalizedNewTime, now);
       const updated = formatAppointment(await queries.findByRef(bookingRef));
-      console.log(`Rescheduled: ${appt.patient_name} → ${normalizedNewDate} ${newTime} | Ref: ${bookingRef}`);
+      console.log(`Rescheduled: ${appt.patient_name} → ${normalizedNewDate} ${normalizedNewTime} | Ref: ${bookingRef}`);
       return res.json({
         success: true,
-        message: `All set! ${appt.patient_name}, your appointment has been moved to ${normalizedNewDate} at ${newTime} with ${appt.dentist}. Booking reference: ${bookingRef}.`,
+        message: `All set! ${appt.patient_name}, your appointment has been moved to ${normalizedNewDate} at ${normalizedNewTime} with ${appt.dentist}. Booking reference: ${bookingRef}.`,
         appointment: updated,
       });
     }
@@ -713,7 +738,9 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
             const bookedRows = dentist && dentist !== "Any available dentist"
               ? await queries.getBookedSlotsByDentist(normalizedDate, dentist)
               : await queries.getBookedSlots(normalizedDate);
-            const bookedSet = new Set(bookedRows.map((r) => r.time));
+
+            // FIX: normalize stored times to 12-hour before comparing with SLOTS
+            const bookedSet = new Set(bookedRows.map((r) => to12Hour(r.time)));
             const availableSlots = allSlots.filter((s) => !bookedSet.has(s));
             const availableDentists = (await queries.getDentistsForDay(day)).map((d) => `${d.name} (${d.specialty})`);
 
@@ -732,8 +759,10 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
 
           // ── bookAppointment ────────────────────────────────────────────────
           if (name === "bookAppointment") {
-            const { patientName, phone, date, time, reason, dentist } = args;
-            if (!patientName || !phone || !date || !time || !reason) {
+            const { patientName, phone, date, reason, dentist } = args;
+            const normalizedTime = to12Hour(args.time); // FIX: normalize to 12-hour
+
+            if (!patientName || !phone || !date || !normalizedTime || !reason) {
               return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: "Missing required fields: patientName, phone, date, time, reason." }) };
             }
 
@@ -744,11 +773,11 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
 
             const day = getDayName(normalizedDate);
             const taken = dentist && dentist !== "Any available dentist"
-              ? await queries.slotTakenForDentist(normalizedDate, time, dentist)
-              : await queries.slotTaken(normalizedDate, time);
+              ? await queries.slotTakenForDentist(normalizedDate, normalizedTime, dentist)
+              : await queries.slotTaken(normalizedDate, normalizedTime);
 
             if (taken) {
-              return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: `The ${time} slot on ${normalizedDate} is already booked. Please choose a different time.` }) };
+              return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: `The ${normalizedTime} slot on ${normalizedDate} is already booked. Please choose a different time.` }) };
             }
 
             let assignedDentist = dentist || null;
@@ -763,16 +792,16 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
 
             await queries.insertAppointment({
               id, bookingRef, patientName, phone: String(phone),
-              date: normalizedDate, time, reason, dentist: assignedDentist, createdAt,
+              date: normalizedDate, time: normalizedTime, reason, dentist: assignedDentist, createdAt,
             });
 
             const newAppointment = formatAppointment(await queries.findByRef(bookingRef));
-            console.log(`Booked: ${patientName} on ${normalizedDate} at ${time} with ${assignedDentist} | Ref: ${bookingRef}`);
+            console.log(`Booked: ${patientName} on ${normalizedDate} at ${normalizedTime} with ${assignedDentist} | Ref: ${bookingRef}`);
 
             return {
               toolCallId: tc.id, result: JSON.stringify({
                 success: true, bookingRef, assignedDentist,
-                message: `Appointment confirmed! ${patientName}, your appointment is booked for ${normalizedDate} at ${time} with ${assignedDentist} for ${reason}. Your booking reference is ${bookingRef}.`,
+                message: `Appointment confirmed! ${patientName}, your appointment is booked for ${normalizedDate} at ${normalizedTime} with ${assignedDentist} for ${reason}. Your booking reference is ${bookingRef}.`,
                 appointment: newAppointment,
               })
             };
@@ -780,7 +809,9 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
 
           // ── updateAppointment ──────────────────────────────────────────────
           if (name === "updateAppointment") {
-            const { bookingRef, action, newDate, newTime, newDentist } = args;
+            const { bookingRef, action, newDate, newDentist } = args;
+            const normalizedNewTime = to12Hour(args.newTime); // FIX: normalize to 12-hour
+
             if (!bookingRef || !action) {
               return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: "Booking reference and action are required." }) };
             }
@@ -799,20 +830,20 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
             }
 
             if (action === "reschedule") {
-              if (!newDate || !newTime) {
+              if (!newDate || !normalizedNewTime) {
                 return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: "New date and new time are required for rescheduling." }) };
               }
               const normalizedNewDate = normalizeDate(newDate);
               if (!isClinicOpen(normalizedNewDate)) {
                 return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: "The clinic is closed on Sundays. Please choose another date." }) };
               }
-              const taken = await queries.slotTakenExcluding(normalizedNewDate, newTime, appt.id);
+              const taken = await queries.slotTakenExcluding(normalizedNewDate, normalizedNewTime, appt.id);
               if (taken) {
-                return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: `The ${newTime} slot on ${normalizedNewDate} is already booked. Please choose a different time.` }) };
+                return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: `The ${normalizedNewTime} slot on ${normalizedNewDate} is already booked. Please choose a different time.` }) };
               }
-              await queries.rescheduleAppointment(bookingRef, normalizedNewDate, newTime, now);
+              await queries.rescheduleAppointment(bookingRef, normalizedNewDate, normalizedNewTime, now);
               const updated = formatAppointment(await queries.findByRef(bookingRef));
-              return { toolCallId: tc.id, result: JSON.stringify({ success: true, message: `All set! ${appt.patient_name}, your appointment has been moved to ${normalizedNewDate} at ${newTime} with ${appt.dentist}. Booking reference: ${bookingRef}.`, appointment: updated }) };
+              return { toolCallId: tc.id, result: JSON.stringify({ success: true, message: `All set! ${appt.patient_name}, your appointment has been moved to ${normalizedNewDate} at ${normalizedNewTime} with ${appt.dentist}. Booking reference: ${bookingRef}.`, appointment: updated }) };
             }
 
             if (action === "changeDentist") {
