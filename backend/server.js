@@ -531,6 +531,41 @@ app.post("/api/update-appointment", vapiLimiter, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  5b. LOOKUP APPOINTMENT BY BOOKING REF  [public — called by Vapi]
+// ─────────────────────────────────────────────────────────────────────────────
+app.post("/api/lookup-appointment", vapiLimiter, async (req, res) => {
+  try {
+    const { bookingRef } = sanitizeBody(req.body);
+    if (!bookingRef) {
+      return res.status(400).json({ success: false, message: "Booking reference is required." });
+    }
+    // Normalize to 4 digits (handles spaced refs like "9 6 7 4")
+    const ref = String(bookingRef).replace(/\D/g, "").slice(0, 4);
+    if (ref.length !== 4) {
+      return res.status(400).json({ success: false, message: "Booking reference must be 4 digits." });
+    }
+    const row = await queries.findConfirmed(ref);
+    if (!row) {
+      return res.status(404).json({ success: false, message: `No confirmed appointment found for booking reference ${ref}.` });
+    }
+    const appt = formatAppointment(row);
+    return res.json({
+      success: true,
+      bookingRef: ref,
+      appointment: appt,
+      date: appt.date,
+      time: appt.time,
+      dentist: appt.dentist,
+      patientName: appt.patientName,
+      status: appt.status,
+    });
+  } catch (err) {
+    console.error("lookup-appointment error:", err);
+    res.status(500).json({ success: false, message: "Internal server error." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  6. GET ALL APPOINTMENTS  [admin]
 // ─────────────────────────────────────────────────────────────────────────────
 app.get("/api/appointments", adminLimiter, requireApiKey, async (req, res) => {
@@ -918,6 +953,36 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
             }
 
             return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: `Unknown action "${action}". Valid actions are: cancel, reschedule, changeDentist.` }) };
+          }
+
+          // ── lookupAppointment ──────────────────────────────────────────────
+          if (name === "lookupAppointment") {
+            const { bookingRef } = args;
+            if (!bookingRef) {
+              return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: "Booking reference is required." }) };
+            }
+            // Normalize to 4 digits (handles spaced refs like "9 6 7 4")
+            const ref = String(bookingRef).replace(/\D/g, "").slice(0, 4);
+            if (ref.length !== 4) {
+              return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: "Booking reference must be 4 digits." }) };
+            }
+            const row = await queries.findConfirmed(ref);
+            if (!row) {
+              return { toolCallId: tc.id, result: JSON.stringify({ success: false, message: `No confirmed appointment found for booking reference ${ref}.` }) };
+            }
+            const appt = formatAppointment(row);
+            return {
+              toolCallId: tc.id, result: JSON.stringify({
+                success: true,
+                bookingRef: ref,
+                appointment: appt,
+                date: appt.date,
+                time: appt.time,
+                dentist: appt.dentist,
+                patientName: appt.patientName,
+                status: appt.status,
+              })
+            };
           }
 
           // ── unknown tool ───────────────────────────────────────────────────
