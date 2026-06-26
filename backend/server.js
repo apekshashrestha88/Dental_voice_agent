@@ -199,24 +199,36 @@ function toE164Nepal(phone) {
 }
 
 // ─── Utility: build date variables for Vapi prompt injection ─────────────────
+// FIX: Use Nepal timezone (UTC+5:45) so "today" and "tomorrow" are correct
+// for the clinic's local time, not Vercel's UTC server time.
 function getDateVariables() {
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
   ];
 
-  const toISO = (d) => d.toISOString().split("T")[0];
-  const toNatural = (d) => `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  // Get current date/time offset to Nepal timezone (UTC+5:45)
+  const nowUtc = new Date();
+  const nepalOffsetMs = (5 * 60 + 45) * 60 * 1000;
+  const now = new Date(nowUtc.getTime() + nepalOffsetMs);
+  const tomorrow = new Date(nowUtc.getTime() + nepalOffsetMs + 24 * 60 * 60 * 1000);
+
+  // Use UTC getters on the offset date to read Nepal local values
+  const toISO = (d) => {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const toNatural = (d) =>
+    `${days[d.getUTCDay()]}, ${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 
   return {
     today_date: toNatural(now),
     today_iso: toISO(now),
-    tomorrow_day: days[tomorrow.getDay()],
+    tomorrow_day: days[tomorrow.getUTCDay()],
     tomorrow_iso: toISO(tomorrow),
   };
 }
