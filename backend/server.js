@@ -331,8 +331,9 @@ app.post("/api/check-availability", vapiLimiter, async (req, res) => {
         requestedDentist: dentist || "Any available dentist",
         availableSlots: allSlots,
         availableDentists: availableDentistsEarly,
+        slotStatus: "invalid_time",
         reason: "outside_clinic_hours",
-        message: `${requestedTime} is outside clinic hours on ${day.charAt(0).toUpperCase() + day.slice(1)}. Available slots are: ${allSlots.join(", ")}.`,
+        message: `Sorry, ${requestedTime} is not a valid appointment time. Our Saturday clinic closes at 03:00 PM. Please choose from the available slots: ${allSlots.join(", ")}.`,
       });
     }
 
@@ -779,8 +780,9 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
                   requestedDentist: dentist || "Any available dentist",
                   availableSlots: allSlots,
                   availableDentists: availableDentistsEarly,
+                  slotStatus: "invalid_time",
                   reason: "outside_clinic_hours",
-                  message: `${requestedTime} is outside clinic hours on ${day.charAt(0).toUpperCase() + day.slice(1)}. Available slots are: ${allSlots.join(", ")}.`,
+                  message: `Sorry, ${requestedTime} is not a valid appointment time on ${day.charAt(0).toUpperCase() + day.slice(1)}. The clinic closes earlier that day. Please choose from: ${allSlots.join(", ")}.`,
                 })
               };
             }
