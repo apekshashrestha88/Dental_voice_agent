@@ -304,6 +304,26 @@ app.post("/api/check-availability", vapiLimiter, async (req, res) => {
       }
     }
 
+    // Check if the requested time (if any) even exists in this day's slots
+    const { time: rawRequestedTime } = sanitizeBody(req.body);
+    const requestedTime = rawRequestedTime ? to12Hour(rawRequestedTime) : null;
+
+    if (requestedTime && !allSlots.includes(requestedTime)) {
+      const availableDentistsEarly = (await queries.getDentistsForDay(day)).map((d) => `${d.name} (${d.specialty})`);
+      return res.json({
+        success: true,
+        available: false,
+        date: normalizedDate,
+        day: day.charAt(0).toUpperCase() + day.slice(1),
+        requestedTime,
+        requestedDentist: dentist || "Any available dentist",
+        availableSlots: allSlots,
+        availableDentists: availableDentistsEarly,
+        reason: "outside_clinic_hours",
+        message: `${requestedTime} is outside clinic hours on ${day.charAt(0).toUpperCase() + day.slice(1)}. Available slots are: ${allSlots.join(", ")}.`,
+      });
+    }
+
     const bookedRows =
       dentist && dentist !== "Any available dentist"
         ? await queries.getBookedSlotsByDentist(normalizedDate, dentist)
@@ -733,6 +753,24 @@ app.post("/api/vapi-tools", vapiLimiter, async (req, res) => {
               if (dentistRecord && !dentistRecord.availableDays.includes(day)) {
                 return { toolCallId: tc.id, result: JSON.stringify({ success: true, available: false, date: normalizedDate, message: `${dentistRecord.name} is not available on ${day}. Available days: ${dentistRecord.availableDays.join(", ")}.`, availableSlots: [], suggestion: "Would you like to book with another dentist or choose a different date?" }) };
               }
+            }
+
+            // Check if the requested time exists in this day's slots at all
+            const requestedTime = args.time ? to12Hour(args.time) : null;
+            if (requestedTime && !allSlots.includes(requestedTime)) {
+              const availableDentistsEarly = (await queries.getDentistsForDay(day)).map((d) => `${d.name} (${d.specialty})`);
+              return {
+                toolCallId: tc.id, result: JSON.stringify({
+                  success: true, available: false, date: normalizedDate,
+                  day: day.charAt(0).toUpperCase() + day.slice(1),
+                  requestedTime,
+                  requestedDentist: dentist || "Any available dentist",
+                  availableSlots: allSlots,
+                  availableDentists: availableDentistsEarly,
+                  reason: "outside_clinic_hours",
+                  message: `${requestedTime} is outside clinic hours on ${day.charAt(0).toUpperCase() + day.slice(1)}. Available slots are: ${allSlots.join(", ")}.`,
+                })
+              };
             }
 
             const bookedRows = dentist && dentist !== "Any available dentist"
